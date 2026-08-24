@@ -455,7 +455,7 @@ input[type="number"]{
   <div id="tradeWrap"></div>
 
   <div class="summary">
-    <h2>📌 SCALPING SUMMARY</h2>
+    <h2>📌 TRADE SUMMARY</h2>
 
     <div class="sumrow"><div class="k">ACTIVE TRANSACTIONS</div><div class="v" id="activeCount">0 / 5</div></div>
     <div class="sumrow"><div class="k">TOTAL BUY UNIT</div><div class="v" id="totalBuyUnit">0</div></div>
@@ -824,7 +824,7 @@ async function generatePDFWithJsPDF(){
   // Header card
   setFill(C.navy); doc.roundedRect(M,12,W-(M*2),40,4,4,'F');
   setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(18);
-  doc.text('LUNO SCALPING TRADE REPORT',M+8,25);
+  doc.text('LUNO TRADE REPORT',M+8,25);
   setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(9);
   const now=new Date();
   doc.text('Generated: '+now.toLocaleString('en-MY'),M+8,33);
@@ -836,14 +836,15 @@ async function generatePDFWithJsPDF(){
 
   // Trade cards
   activeTrades.forEach(t=>{
-    ensure(73);
+    ensure(98);
 
     const state = t.pnl>0.005 ? 'PROFIT' : t.pnl<-0.005 ? 'LOSS' : 'BREAKEVEN';
     const accent = state==='PROFIT'?C.green:state==='LOSS'?C.red:C.blue;
     const soft = state==='PROFIT'?C.greenSoft:state==='LOSS'?C.redSoft:C.blueSoft;
 
-    setFill(C.panel); doc.roundedRect(M,y,W-(M*2),66,4,4,'F');
-    setFill(accent); doc.roundedRect(M,y,3,66,1.5,1.5,'F');
+    // Larger trade card with clearly separated BUY / SELL panels.
+    setFill(C.panel); doc.roundedRect(M,y,W-(M*2),91,4,4,'F');
+    setFill(accent); doc.roundedRect(M,y,3,91,1.5,1.5,'F');
 
     setText(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
     doc.text('TRADE '+t.index,M+8,y+9);
@@ -852,65 +853,86 @@ async function generatePDFWithJsPDF(){
     setText(accent); doc.setFontSize(7.5);
     doc.text(state,W-M-21,y+8.7,{align:'center'});
 
-    const leftX=M+8, boxY=y+14, boxW=79, boxH=39;
+    const leftX=M+8, boxY=y+14, boxW=79, boxH=61;
     const rightX=M+95;
 
-    // BUY box
-    setFill([17,24,39]); doc.roundedRect(leftX,boxY,boxW,boxH,3,3,'F');
-    setDraw(C.line); doc.roundedRect(leftX,boxY,boxW,boxH,3,3,'S');
-    setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(9);
-    doc.text('BUY',leftX+5,boxY+7);
-
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    doc.text('Price',leftX+5,boxY+14);
-    doc.text('Unit',leftX+5,boxY+20);
-    doc.text('Fee Unit',leftX+5,boxY+26);
-    doc.text('Net Unit',leftX+5,boxY+32);
-    doc.text('Value',leftX+5,boxY+38);
-
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
-    doc.text('RM '+t.buy.toFixed(4),leftX+boxW-5,boxY+14,{align:'right'});
-    doc.text(unitFmt(t.unit),leftX+boxW-5,boxY+20,{align:'right'});
-    doc.text(unitFmt(t.buyFee),leftX+boxW-5,boxY+26,{align:'right'});
-    doc.text(unitFmt(t.netUnit),leftX+boxW-5,boxY+32,{align:'right'});
-    doc.text(money(t.buyValue),leftX+boxW-5,boxY+38,{align:'right'});
-
-    // SELL box
-    setFill([17,24,39]); doc.roundedRect(rightX,boxY,boxW,boxH,3,3,'F');
-    setDraw(C.line); doc.roundedRect(rightX,boxY,boxW,boxH,3,3,'S');
-    setText(C.orange || [245,158,11]); doc.setFont('helvetica','bold'); doc.setFontSize(9);
-    doc.text('SELL',rightX+5,boxY+7);
-
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    doc.text('Price',rightX+5,boxY+14);
-    doc.text('Fee Unit',rightX+5,boxY+20);
-    doc.text('Net Unit Sell',rightX+5,boxY+26);
-    doc.text('Value',rightX+5,boxY+32);
-    doc.text('Breakeven',rightX+5,boxY+38);
-
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
-    doc.text('RM '+t.sell.toFixed(4),rightX+boxW-5,boxY+14,{align:'right'});
-    doc.text(unitFmt(t.sellFee),rightX+boxW-5,boxY+20,{align:'right'});
-    doc.text(unitFmt(t.netSell),rightX+boxW-5,boxY+26,{align:'right'});
-    doc.text(money(t.sellValue),rightX+boxW-5,boxY+32,{align:'right'});
-    doc.text('RM '+t.breakeven.toFixed(6),rightX+boxW-5,boxY+38,{align:'right'});
-
-    // Dates
     const bDate=document.getElementById('buyDate'+t.index)?.value||'';
     const bTime=document.getElementById('buyTime'+t.index)?.value||'';
     const sDate=document.getElementById('sellDate'+t.index)?.value||'';
     const sTime=document.getElementById('sellTime'+t.index)?.value||'';
 
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(6.6);
-    doc.text('Buy: '+formatTradeDateTime(bDate,bTime),leftX,boxY+45);
-    doc.text('Sell: '+formatTradeDateTime(sDate,sTime),rightX,boxY+45);
+    // BUY panel
+    setFill([17,24,39]);
+    setDraw(C.blue);
+    doc.roundedRect(leftX,boxY,boxW,boxH,3,3,'FD');
 
-    // Profit/Loss bar
-    setFill(soft); doc.roundedRect(M+8,y+58,W-(M*2)-16,6,2,2,'F');
-    setText(accent); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
-    doc.text('P/L  '+(t.pnl>=0?'+':'')+money(t.pnl)+'   ('+(t.pct>=0?'+':'')+t.pct.toFixed(2)+'%)',W/2,y+62.2,{align:'center'});
+    setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text('BUY',leftX+5,boxY+7);
 
-    y+=73;
+    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text('Price',leftX+5,boxY+15);
+    doc.text('Unit',leftX+5,boxY+21);
+    doc.text('Fee Unit',leftX+5,boxY+27);
+    doc.text('Net Unit',leftX+5,boxY+33);
+    doc.text('Value',leftX+5,boxY+39);
+
+    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+    doc.text('RM '+t.buy.toFixed(4),leftX+boxW-6,boxY+15,{align:'right'});
+    doc.text(unitFmt(t.unit),leftX+boxW-6,boxY+21,{align:'right'});
+    doc.text(unitFmt(t.buyFee),leftX+boxW-6,boxY+27,{align:'right'});
+    doc.text(unitFmt(t.netUnit),leftX+boxW-6,boxY+33,{align:'right'});
+    doc.text(money(t.buyValue),leftX+boxW-6,boxY+39,{align:'right'});
+
+    // BUY Date/Time inset INSIDE BUY panel
+    setFill([12,31,50]); setDraw(C.blue);
+    doc.roundedRect(leftX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
+    setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(6.7);
+    doc.text('BUY DATE / TIME',leftX+8,boxY+49);
+    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.1);
+    const buyDT=doc.splitTextToSize(formatTradeDateTime(bDate,bTime),boxW-16);
+    doc.text(buyDT,leftX+8,boxY+54);
+
+    // SELL panel
+    setFill([17,24,39]);
+    setDraw(C.orange);
+    doc.roundedRect(rightX,boxY,boxW,boxH,3,3,'FD');
+
+    setText(C.orange); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text('SELL',rightX+5,boxY+7);
+
+    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text('Price',rightX+5,boxY+15);
+    doc.text('Fee Unit',rightX+5,boxY+21);
+    doc.text('Net Unit Sell',rightX+5,boxY+27);
+    doc.text('Value',rightX+5,boxY+33);
+    doc.text('Breakeven',rightX+5,boxY+39);
+
+    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+    doc.text('RM '+t.sell.toFixed(4),rightX+boxW-6,boxY+15,{align:'right'});
+    doc.text(unitFmt(t.sellFee),rightX+boxW-6,boxY+21,{align:'right'});
+    doc.text(unitFmt(t.netSell),rightX+boxW-6,boxY+27,{align:'right'});
+    doc.text(money(t.sellValue),rightX+boxW-6,boxY+33,{align:'right'});
+    doc.text('RM '+t.breakeven.toFixed(6),rightX+boxW-6,boxY+39,{align:'right'});
+
+    // SELL Date/Time inset INSIDE SELL panel
+    setFill([46,34,15]); setDraw(C.orange);
+    doc.roundedRect(rightX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
+    setText(C.orange); doc.setFont('helvetica','bold'); doc.setFontSize(6.7);
+    doc.text('SELL DATE / TIME',rightX+8,boxY+49);
+    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.1);
+    const sellDT=doc.splitTextToSize(formatTradeDateTime(sDate,sTime),boxW-16);
+    doc.text(sellDT,rightX+8,boxY+54);
+
+    // Profit/Loss bar under the two panels
+    setFill(soft); setDraw(accent);
+    doc.roundedRect(M+8,y+79,W-(M*2)-16,8,2.5,2.5,'FD');
+    setText(accent); doc.setFont('helvetica','bold'); doc.setFontSize(8.2);
+    doc.text(
+      'PROFIT / LOSS   '+(t.pnl>=0?'+':'')+money(t.pnl)+'   ('+(t.pct>=0?'+':'')+t.pct.toFixed(2)+'%)',
+      W/2,y+84.3,{align:'center'}
+    );
+
+    y+=98;
   });
 
   // Totals
@@ -924,7 +946,7 @@ async function generatePDFWithJsPDF(){
   ensure(78);
 
   setText(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-  doc.text('SCALPING SUMMARY',M,y);
+  doc.text('TRADE SUMMARY',M,y);
   y+=6;
 
   setFill(C.navy); doc.roundedRect(M,y,W-(M*2),36,4,4,'F');
@@ -991,7 +1013,7 @@ async function generatePDFWithJsPDF(){
 
   // Footer
   setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-  doc.text('Generated from LUNO Multi Trade Profit/Loss Calculator',W/2,H-7,{align:'center'});
+  doc.text('Generated from LUNO Multi Trade Calculator',W/2,H-7,{align:'center'});
 
   const stamp = now.getFullYear().toString()
     +String(now.getMonth()+1).padStart(2,'0')
@@ -1063,7 +1085,10 @@ function buildPrintableReportHTML(){
             <div class="line"><span>Buy Fee</span><b>${units(t.buyFee)}</b></div>
             <div class="line"><span>Net Unit</span><b>${units(t.netUnit)}</b></div>
             <div class="line"><span>Buy Value</span><b>${money(t.buyValue)}</b></div>
-            <div class="datetime">Date/Time<br><b>${formatTradeDateTime(t.buyDate,t.buyTime)}</b></div>
+            <div class="date-inset buy-date">
+              <span>BUY DATE / TIME</span>
+              <b>${formatTradeDateTime(t.buyDate,t.buyTime)}</b>
+            </div>
           </div>
 
           <div class="sidebox sellbox">
@@ -1073,7 +1098,10 @@ function buildPrintableReportHTML(){
             <div class="line"><span>Net Unit Sell</span><b>${units(t.netSell)}</b></div>
             <div class="line"><span>Sell Value</span><b>${money(t.sellValue)}</b></div>
             <div class="line"><span>Breakeven</span><b>RM ${t.breakeven.toFixed(6)}</b></div>
-            <div class="datetime">Date/Time<br><b>${formatTradeDateTime(t.sellDate,t.sellTime)}</b></div>
+            <div class="date-inset sell-date">
+              <span>SELL DATE / TIME</span>
+              <b>${formatTradeDateTime(t.sellDate,t.sellTime)}</b>
+            </div>
           </div>
         </div>
 
@@ -1109,17 +1137,23 @@ h1{margin:0 0 8px;font-size:24px;color:#38bdf8}
 .loss .badge{color:#fda4af;background:#4b1720}
 .be .badge{color:#7dd3fc;background:#12344b}
 .trade-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.sidebox{background:#111827;border:1px solid #263249;border-radius:12px;padding:11px}
+.sidebox{background:#111827;border-radius:12px;padding:12px;min-width:0}
+.buybox{border:1px solid #38bdf8}
+.sellbox{border:1px solid #f59e0b}
 .side-title{font-size:11px;font-weight:800;letter-spacing:.6px;margin-bottom:8px}
 .buybox .side-title{color:#38bdf8}
 .sellbox .side-title{color:#f59e0b}
-.line{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #1f2937;font-size:10px}
+.line{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #1f2937;font-size:10px}
 .line:last-of-type{border-bottom:0}
 .line span{color:#94a3b8}
-.line b{text-align:right;font-size:11px}
-.datetime{margin-top:9px;padding-top:8px;border-top:1px dashed #334155;color:#94a3b8;font-size:9px;line-height:1.5}
+.line b{text-align:right;font-size:11px;max-width:58%}
+.date-inset{margin-top:10px;border-radius:9px;padding:8px 9px;line-height:1.45}
+.date-inset span{display:block;font-size:8px;font-weight:800;margin-bottom:4px}
+.date-inset b{display:block;font-size:9.5px;overflow-wrap:anywhere}
+.buy-date{border:1px solid #38bdf8;background:#0c1f32;color:#7dd3fc}
+.sell-date{border:1px solid #f59e0b;background:#2e220f;color:#fbbf24}
 .datetime b{color:#f8fafc;font-size:10px}
-.trade-pnl{margin-top:10px;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:10px;font-weight:800}
+.trade-pnl{margin-top:14px;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:10px;font-weight:800}
 .trade-pnl.profit{background:#12351f;color:#86efac}
 .trade-pnl.loss{background:#4b1720;color:#fda4af}
 .trade-pnl.be{background:#12344b;color:#7dd3fc}
@@ -1144,7 +1178,7 @@ b{font-size:12px}
 <body>
 <div class="wrap">
   <div class="header">
-    <h1>LUNO SCALPING TRADE REPORT</h1>
+    <h1>LUNO TRADE REPORT</h1>
     <div class="sub">
       Coin Name: ${coin}<br>
       Pair: ${pair}<br>
@@ -1156,7 +1190,7 @@ b{font-size:12px}
   ${cards}
 
   <div class="summary">
-    <strong>SCALPING SUMMARY</strong>
+    <strong>TRADE SUMMARY</strong>
     <div class="sumgrid" style="margin-top:10px">
       <div class="sumitem"><small>ACTIVE TRADES</small><b>${trades.length} / 5</b></div>
       <div class="sumitem"><small>TOTAL BUY UNIT</small><b>${units(trades.reduce((a,t)=>a+t.unit,0))}</b></div>
