@@ -139,6 +139,7 @@ button{
 }
 .reset{background:#172033;color:#dbeafe}
 .sample{background:#22c55e;color:#052e16}
+.new-record-active{box-shadow:0 0 0 2px rgba(56,189,248,.18)}
 .pdfbtn{
   background:linear-gradient(90deg,#38bdf8,#22c55e);
   color:#03111c;
@@ -454,6 +455,11 @@ input[type="number"]{
 
   <div id="tradeWrap"></div>
 
+  <div style="margin:0 0 14px">
+    <button class="sample" id="addTradeBtn">➕ ADD NEW TRADE</button>
+  </div>
+
+
   <div class="summary">
     <h2>📌 TRADE SUMMARY</h2>
 
@@ -486,8 +492,14 @@ input[type="number"]{
 <div class="ledger-panel">
   <h2>🧾 TRADE RECORD / TAX SUPPORTING LEDGER</h2>
   <div class="ledger-note">
-    Simpan transaksi scalping yang selesai sebagai rekod. Buy/Sell date & time direkod berasingan untuk setiap trade yang diisi.
+    Simpan transaksi yang selesai sebagai rekod. Buy/Sell date & time direkod berasingan untuk setiap trade yang diisi.
   </div>
+
+  <div class="fee-banner" style="margin:0 0 12px">
+    <div class="t">CURRENT RECORD</div>
+    <div class="v" id="currentRecordLabel" style="font-size:14px;color:#38bdf8">NEW</div>
+  </div>
+
 
   <div class="meta-grid">
     <div class="meta-field">
@@ -508,6 +520,7 @@ input[type="number"]{
 
   <div class="ledger-actions">
     <button class="savebtn" id="saveLedgerBtn">💾 SAVE ACTIVE TRADES TO LEDGER</button>
+    <button class="sample" id="newRecordBtn">➕ NEW RECORD</button>
     <button class="csvbtn" id="csvBtn">📊 EXPORT LEDGER CSV</button>
     <button class="jsonbtn" id="jsonBtn">🗂 BACKUP LEDGER JSON</button>
   </div>
@@ -555,7 +568,7 @@ function setDefaultSellDateTime(){
     pad2(now.getDate());
   const timeValue=pad2(now.getHours())+':'+pad2(now.getMinutes());
 
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=tradeCount;i++){
     const d=document.getElementById('sellDate'+i);
     const t=document.getElementById('sellTime'+i);
 
@@ -565,11 +578,12 @@ function setDefaultSellDateTime(){
   }
 }
 
-function makeTrades(){
-  let h='';
-  for(let i=1;i<=5;i++){
-    h+=`
-    <section class="trade">
+
+let tradeCount = 5;
+
+function renderSingleTrade(i){
+  return `
+    <section class="trade" id="tradeSection${i}">
       <div class="trade-head">
         <div class="trade-name">TRADE ${i}</div>
         <div class="status" id="st${i}">EMPTY</div>
@@ -626,24 +640,51 @@ function makeTrades(){
         </div>
       </div>
     </section>`;
-  }
+}
 
-  document.getElementById('tradeWrap').innerHTML=h;
-
-  document.querySelectorAll('.calc').forEach(x=>{
+function bindTradeListeners(scope=document){
+  scope.querySelectorAll('.calc').forEach(x=>{
+    if(x.dataset.bound) return;
+    x.dataset.bound='1';
     x.addEventListener('input',()=>{calc();save()});
   });
-
-  document.querySelectorAll('.trade-date,.trade-time').forEach(x=>{
+  scope.querySelectorAll('.trade-date,.trade-time').forEach(x=>{
+    if(x.dataset.bound) return;
+    x.dataset.bound='1';
     x.addEventListener('change',save);
     x.addEventListener('input',save);
   });
+}
+
+function addTrade(){
+  tradeCount++;
+  const wrap=document.getElementById('tradeWrap');
+  wrap.insertAdjacentHTML('beforeend', renderSingleTrade(tradeCount));
+  bindTradeListeners(document.getElementById('tradeSection'+tradeCount));
+
+  const now=new Date();
+  const d=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+  const t=pad2(now.getHours())+':'+pad2(now.getMinutes());
+  document.getElementById('sellDate'+tradeCount).value=d;
+  document.getElementById('sellTime'+tradeCount).value=t;
+
+  save();
+  calc();
+
+  document.getElementById('tradeSection'+tradeCount).scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function makeTrades(){
+  let h='';
+  for(let i=1;i<=tradeCount;i++) h+=renderSingleTrade(i);
+  document.getElementById('tradeWrap').innerHTML=h;
+  bindTradeListeners(document);
 }
 function calc(){
   let active=0,totalUnit=0,totalBuy=0,totalSell=0,totalNetSell=0;
   let orderHTML='<h2 style="margin-top:14px">SELL ORDER SUMMARY</h2>';
 
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=tradeCount;i++){
     const unit=n('unit'+i), buy=n('buy'+i), sell=n('sell'+i);
     const any=unit>0||buy>0||sell>0;
     const complete=unit>0&&buy>0&&sell>0;
@@ -701,7 +742,7 @@ function calc(){
   const totalPnl=totalSell-totalBuy;
   const pct=totalBuy>0?(totalPnl/totalBuy)*100:0;
 
-  document.getElementById('activeCount').textContent=active+' / 5';
+  document.getElementById('activeCount').textContent=active+' / '+tradeCount;
   document.getElementById('totalBuyUnit').textContent=fUnit(totalUnit);
   document.getElementById('totalBuyValue').textContent=fRM(totalBuy);
   document.getElementById('totalSellValue').textContent=fRM(totalSell);
@@ -720,542 +761,56 @@ function calc(){
 function save(){
   try{
     const d=[];
-    for(let i=1;i<=5;i++) d.push({
-      unit:document.getElementById('unit'+i).value,
-      buy:document.getElementById('buy'+i).value,
-      sell:document.getElementById('sell'+i).value,
-      buyDate:document.getElementById('buyDate'+i)?.value||'',
-      buyTime:document.getElementById('buyTime'+i)?.value||'',
-      sellDate:document.getElementById('sellDate'+i)?.value||'',
-      sellTime:document.getElementById('sellTime'+i)?.value||''
-    });
-    localStorage.setItem('lunoMultiTrade5',JSON.stringify(d));
+    for(let i=1;i<=tradeCount;i++){
+      d.push({
+        unit:document.getElementById('unit'+i)?.value||'',
+        buy:document.getElementById('buy'+i)?.value||'',
+        sell:document.getElementById('sell'+i)?.value||'',
+        buyDate:document.getElementById('buyDate'+i)?.value||'',
+        buyTime:document.getElementById('buyTime'+i)?.value||'',
+        sellDate:document.getElementById('sellDate'+i)?.value||'',
+        sellTime:document.getElementById('sellTime'+i)?.value||''
+      });
+    }
+    localStorage.setItem('lunoMultiTrade5',JSON.stringify({tradeCount,data:d}));
   }catch(e){}
 }
 function load(){
   try{
-    const d=JSON.parse(localStorage.getItem('lunoMultiTrade5')||'[]');
+    const raw=localStorage.getItem('lunoMultiTrade5');
+    if(!raw) return;
+
+    const parsed=JSON.parse(raw);
+    let d=[];
+
+    // Backward compatibility with older saved array format.
+    if(Array.isArray(parsed)){
+      d=parsed;
+      tradeCount=Math.max(5,d.length);
+    }else{
+      tradeCount=Math.max(5,Number(parsed.tradeCount)||5);
+      d=Array.isArray(parsed.data)?parsed.data:[];
+    }
+
+    makeTrades();
+
     d.forEach((t,idx)=>{
-      const i=idx+1;if(i>5)return;
+      const i=idx+1;
+      if(i>tradeCount) return;
       document.getElementById('unit'+i).value=t.unit||'';
       document.getElementById('buy'+i).value=t.buy||'';
       document.getElementById('sell'+i).value=t.sell||'';
-      if(document.getElementById('buyDate'+i)) document.getElementById('buyDate'+i).value=t.buyDate||'';
-      if(document.getElementById('buyTime'+i)) document.getElementById('buyTime'+i).value=t.buyTime||'';
-      if(document.getElementById('sellDate'+i)) document.getElementById('sellDate'+i).value=t.sellDate||'';
-      if(document.getElementById('sellTime'+i)) document.getElementById('sellTime'+i).value=t.sellTime||'';
+      document.getElementById('buyDate'+i).value=t.buyDate||'';
+      document.getElementById('buyTime'+i).value=t.buyTime||'';
+      document.getElementById('sellDate'+i).value=t.sellDate||'';
+      document.getElementById('sellTime'+i).value=t.sellTime||'';
     });
   }catch(e){}
 }
-
-async function generatePDFWithJsPDF(){
-  const activeTrades=[];
-
-  for(let i=1;i<=5;i++){
-    const unit=n('unit'+i), buy=n('buy'+i), sell=n('sell'+i);
-    if(!(unit>0 && buy>0 && sell>0)) continue;
-
-    const buyFee=unit*FEE;
-    const netUnit=unit-buyFee;
-    const buyValue=unit*buy;
-    const sellFee=netUnit*FEE;
-    const netSell=netUnit-sellFee;
-    const sellValue=netSell*sell;
-    const breakeven=netSell>0?buyValue/netSell:0;
-    const pnl=sellValue-buyValue;
-    const pct=buyValue>0?(pnl/buyValue)*100:0;
-
-    activeTrades.push({
-      index:i, unit, buy, sell, buyFee, netUnit, buyValue,
-      sellFee, netSell, sellValue, breakeven, pnl, pct
-    });
-  }
-
-  if(activeTrades.length===0){
-    alert('Isi sekurang-kurangnya 1 transaksi lengkap dahulu.');
-    return;
-  }
-
-  if(!window.jspdf || !window.jspdf.jsPDF){
-    throw new Error('JSPDF_NOT_AVAILABLE');
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const W=210, H=297, M=14;
-  let y=0;
-
-  const C={
-    navy:[7,17,31],
-    panel:[15,24,39],
-    line:[39,52,74],
-    text:[241,245,249],
-    muted:[148,163,184],
-    green:[34,197,94],
-    orange:[245,158,11],
-    greenSoft:[20,83,45],
-    red:[239,68,68],
-    redSoft:[95,28,35],
-    blue:[56,189,248],
-    blueSoft:[20,65,91],
-    white:[255,255,255],
-    black:[3,7,18]
-  };
-
-  function setFill(c){doc.setFillColor(c[0],c[1],c[2])}
-  function setText(c){doc.setTextColor(c[0],c[1],c[2])}
-  function setDraw(c){doc.setDrawColor(c[0],c[1],c[2])}
-  function money(v){return 'RM '+Number(v).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2})}
-  function unitFmt(v){return Number(v).toLocaleString('en-MY',{maximumFractionDigits:3})}
-
-  function newPage(){
-    doc.addPage();
-    setFill(C.black); doc.rect(0,0,W,H,'F');
-    y=16;
-  }
-
-  function ensure(h){
-    if(y+h>H-14) newPage();
-  }
-
-  // Full dark background
-  setFill(C.black); doc.rect(0,0,W,H,'F');
-
-  // Header card
-  setFill(C.navy); doc.roundedRect(M,12,W-(M*2),40,4,4,'F');
-  setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(18);
-  doc.text('LUNO TRADE REPORT',M+8,25);
-  setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  const now=new Date();
-  doc.text('Generated: '+now.toLocaleString('en-MY'),M+8,33);
-  const selectedPair=(document.getElementById('coinSelect')?.value||'GRT/MYR');
-  doc.text('Coin Name: '+getCoinDisplayName(selectedPair),M+8,39);
-  setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-  doc.text('Pair: '+selectedPair+'  |  Fixed Buy Fee 0.5% + Sell Fee 0.5%',M+8,44);
-  y=60;
-
-  // Trade cards
-  activeTrades.forEach(t=>{
-    ensure(98);
-
-    const state = t.pnl>0.005 ? 'PROFIT' : t.pnl<-0.005 ? 'LOSS' : 'BREAKEVEN';
-    const accent = state==='PROFIT'?C.green:state==='LOSS'?C.red:C.blue;
-    const soft = state==='PROFIT'?C.greenSoft:state==='LOSS'?C.redSoft:C.blueSoft;
-
-    // Larger trade card with clearly separated BUY / SELL panels.
-    setFill(C.panel); doc.roundedRect(M,y,W-(M*2),91,4,4,'F');
-    setFill(accent); doc.roundedRect(M,y,3,91,1.5,1.5,'F');
-
-    setText(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-    doc.text('TRADE '+t.index,M+8,y+9);
-
-    setFill(soft); doc.roundedRect(W-M-34,y+4,26,7,3,3,'F');
-    setText(accent); doc.setFontSize(7.5);
-    doc.text(state,W-M-21,y+8.7,{align:'center'});
-
-    const leftX=M+8, boxY=y+14, boxW=79, boxH=61;
-    const rightX=M+95;
-
-    const bDate=document.getElementById('buyDate'+t.index)?.value||'';
-    const bTime=document.getElementById('buyTime'+t.index)?.value||'';
-    const sDate=document.getElementById('sellDate'+t.index)?.value||'';
-    const sTime=document.getElementById('sellTime'+t.index)?.value||'';
-
-    // BUY panel
-    setFill([17,24,39]);
-    setDraw(C.blue);
-    doc.roundedRect(leftX,boxY,boxW,boxH,3,3,'FD');
-
-    setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-    doc.text('BUY',leftX+5,boxY+7);
-
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    doc.text('Price',leftX+5,boxY+15);
-    doc.text('Unit',leftX+5,boxY+21);
-    doc.text('Fee Unit',leftX+5,boxY+27);
-    doc.text('Net Unit',leftX+5,boxY+33);
-    doc.text('Value',leftX+5,boxY+39);
-
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
-    doc.text('RM '+t.buy.toFixed(4),leftX+boxW-6,boxY+15,{align:'right'});
-    doc.text(unitFmt(t.unit),leftX+boxW-6,boxY+21,{align:'right'});
-    doc.text(unitFmt(t.buyFee),leftX+boxW-6,boxY+27,{align:'right'});
-    doc.text(unitFmt(t.netUnit),leftX+boxW-6,boxY+33,{align:'right'});
-    doc.text(money(t.buyValue),leftX+boxW-6,boxY+39,{align:'right'});
-
-    // BUY Date/Time inset INSIDE BUY panel
-    setFill([12,31,50]); setDraw(C.blue);
-    doc.roundedRect(leftX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
-    setText(C.blue); doc.setFont('helvetica','bold'); doc.setFontSize(6.7);
-    doc.text('BUY DATE / TIME',leftX+8,boxY+49);
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.1);
-    const buyDT=doc.splitTextToSize(formatTradeDateTime(bDate,bTime),boxW-16);
-    doc.text(buyDT,leftX+8,boxY+54);
-
-    // SELL panel
-    setFill([17,24,39]);
-    setDraw(C.orange);
-    doc.roundedRect(rightX,boxY,boxW,boxH,3,3,'FD');
-
-    setText(C.orange); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-    doc.text('SELL',rightX+5,boxY+7);
-
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    doc.text('Price',rightX+5,boxY+15);
-    doc.text('Fee Unit',rightX+5,boxY+21);
-    doc.text('Net Unit Sell',rightX+5,boxY+27);
-    doc.text('Value',rightX+5,boxY+33);
-    doc.text('Breakeven',rightX+5,boxY+39);
-
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
-    doc.text('RM '+t.sell.toFixed(4),rightX+boxW-6,boxY+15,{align:'right'});
-    doc.text(unitFmt(t.sellFee),rightX+boxW-6,boxY+21,{align:'right'});
-    doc.text(unitFmt(t.netSell),rightX+boxW-6,boxY+27,{align:'right'});
-    doc.text(money(t.sellValue),rightX+boxW-6,boxY+33,{align:'right'});
-    doc.text('RM '+t.breakeven.toFixed(6),rightX+boxW-6,boxY+39,{align:'right'});
-
-    // SELL Date/Time inset INSIDE SELL panel
-    setFill([46,34,15]); setDraw(C.orange);
-    doc.roundedRect(rightX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
-    setText(C.orange); doc.setFont('helvetica','bold'); doc.setFontSize(6.7);
-    doc.text('SELL DATE / TIME',rightX+8,boxY+49);
-    setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.1);
-    const sellDT=doc.splitTextToSize(formatTradeDateTime(sDate,sTime),boxW-16);
-    doc.text(sellDT,rightX+8,boxY+54);
-
-    // Profit/Loss bar under the two panels
-    setFill(soft); setDraw(accent);
-    doc.roundedRect(M+8,y+79,W-(M*2)-16,8,2.5,2.5,'FD');
-    setText(accent); doc.setFont('helvetica','bold'); doc.setFontSize(8.2);
-    doc.text(
-      'PROFIT / LOSS   '+(t.pnl>=0?'+':'')+money(t.pnl)+'   ('+(t.pct>=0?'+':'')+t.pct.toFixed(2)+'%)',
-      W/2,y+84.3,{align:'center'}
-    );
-
-    y+=98;
-  });
-
-  // Totals
-  const totalUnit=activeTrades.reduce((a,t)=>a+t.unit,0);
-  const totalBuy=activeTrades.reduce((a,t)=>a+t.buyValue,0);
-  const totalSell=activeTrades.reduce((a,t)=>a+t.sellValue,0);
-  const totalNetSell=activeTrades.reduce((a,t)=>a+t.netSell,0);
-  const totalPnl=totalSell-totalBuy;
-  const totalPct=totalBuy>0?(totalPnl/totalBuy)*100:0;
-
-  ensure(78);
-
-  setText(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-  doc.text('TRADE SUMMARY',M,y);
-  y+=6;
-
-  setFill(C.navy); doc.roundedRect(M,y,W-(M*2),36,4,4,'F');
-
-  const colW=(W-(M*2)-12)/3;
-  const sx=[M+6,M+6+colW,M+6+colW*2];
-
-  const summaryItems=[
-    ['ACTIVE TRADES',activeTrades.length+' / 5'],
-    ['TOTAL BUY UNIT',unitFmt(totalUnit)],
-    ['TOTAL BUY VALUE',money(totalBuy)],
-    ['TOTAL SELL VALUE',money(totalSell)]
-  ];
-
-  setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.2);
-  doc.text('ACTIVE TRADES',sx[0],y+10);
-  doc.text('TOTAL BUY VALUE',sx[1],y+10);
-  doc.text('TOTAL SELL VALUE',sx[2],y+10);
-
-  setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text(activeTrades.length+' / 5',sx[0],y+17);
-  doc.text(money(totalBuy),sx[1],y+17);
-  doc.text(money(totalSell),sx[2],y+17);
-
-  setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.2);
-  doc.text('TOTAL BUY UNIT',sx[0],y+27);
-  setText(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(10);
-  doc.text(unitFmt(totalUnit),sx[0],y+33);
-
-  y+=43;
-
-  // Unit must sell highlight
-  setFill(C.greenSoft); doc.roundedRect(M,y,W-(M*2),23,4,4,'F');
-  setText(C.green); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-  doc.text('UNIT MUST SELL',W/2,y+7,{align:'center'});
-  doc.setFontSize(20);
-  doc.text(unitFmt(totalNetSell),W/2,y+17,{align:'center'});
-  y+=29;
-
-  // Total pnl highlight
-  const finalAccent=totalPnl>0.005?C.green:totalPnl<-0.005?C.red:C.blue;
-  const finalSoft=totalPnl>0.005?C.greenSoft:totalPnl<-0.005?C.redSoft:C.blueSoft;
-  setFill(finalSoft); doc.roundedRect(M,y,W-(M*2),24,4,4,'F');
-  setText(finalAccent); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-  doc.text('TOTAL PROFIT / LOSS',W/2,y+7,{align:'center'});
-  doc.setFontSize(16);
-  doc.text((totalPnl>=0?'+':'')+money(totalPnl)+'  ('+(totalPct>=0?'+':'')+totalPct.toFixed(2)+'%)',W/2,y+17,{align:'center'});
-  y+=31;
-
-  // Sell order summary
-  ensure(15 + activeTrades.length*8);
-  setText(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('SELL ORDER SUMMARY',M,y);
-  y+=6;
-
-  activeTrades.forEach(t=>{
-    setFill(C.panel); doc.roundedRect(M,y,W-(M*2),7,2,2,'F');
-    setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.8);
-    doc.text('Trade '+t.index,M+5,y+4.7);
-    setText(C.text); doc.setFont('helvetica','bold');
-    doc.text(unitFmt(t.netSell)+' unit @ RM '+t.sell.toFixed(4),W-M-5,y+4.7,{align:'right'});
-    y+=9;
-  });
-
-  // Footer
-  setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
-  doc.text('Generated from LUNO Multi Trade Calculator',W/2,H-7,{align:'center'});
-
-  const stamp = now.getFullYear().toString()
-    +String(now.getMonth()+1).padStart(2,'0')
-    +String(now.getDate()).padStart(2,'0')+'_'
-    +String(now.getHours()).padStart(2,'0')
-    +String(now.getMinutes()).padStart(2,'0');
-
-  doc.save('LUNO_Scalping_Report_'+stamp+'.pdf');
-}
-
-
-
-function buildPrintableReportHTML(){
-  const trades=[];
-  for(let i=1;i<=5;i++){
-    const unit=n('unit'+i), buy=n('buy'+i), sell=n('sell'+i);
-    if(!(unit>0&&buy>0&&sell>0)) continue;
-
-    const buyFee=unit*FEE;
-    const netUnit=unit-buyFee;
-    const buyValue=unit*buy;
-    const sellFee=netUnit*FEE;
-    const netSell=netUnit-sellFee;
-    const sellValue=netSell*sell;
-    const breakeven=netSell>0?buyValue/netSell:0;
-    const pnl=sellValue-buyValue;
-    const pct=buyValue>0?(pnl/buyValue)*100:0;
-
-    trades.push({
-      i,unit,buy,sell,buyFee,netUnit,buyValue,sellFee,netSell,sellValue,
-      breakeven,pnl,pct,
-      buyDate:document.getElementById('buyDate'+i)?.value||'',
-      buyTime:document.getElementById('buyTime'+i)?.value||'',
-      sellDate:document.getElementById('sellDate'+i)?.value||'',
-      sellTime:document.getElementById('sellTime'+i)?.value||''
-    });
-  }
-
-  if(!trades.length) return '';
-
-  const pair=document.getElementById('coinSelect')?.value||'GRT/MYR';
-  const coin=getCoinDisplayName(pair);
-  const totalBuy=trades.reduce((a,t)=>a+t.buyValue,0);
-  const totalSell=trades.reduce((a,t)=>a+t.sellValue,0);
-  const totalNet=trades.reduce((a,t)=>a+t.netSell,0);
-  const totalPnl=totalSell-totalBuy;
-  const totalPct=totalBuy>0?(totalPnl/totalBuy)*100:0;
-
-  const money=v=>'RM '+Number(v).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const units=v=>Number(v).toLocaleString('en-MY',{maximumFractionDigits:3});
-  const state=v=>v>0.005?'profit':v<-0.005?'loss':'be';
-
-  let cards='';
-  trades.forEach(t=>{
-    const s=state(t.pnl);
-    const label=s==='profit'?'PROFIT':s==='loss'?'LOSS':'BREAKEVEN';
-    cards+=`
-      <section class="trade ${s}">
-        <div class="trade-head">
-          <strong>TRADE ${t.i}</strong>
-          <span class="badge">${label}</span>
-        </div>
-
-        <div class="trade-columns">
-          <div class="sidebox buybox">
-            <div class="side-title">BUY</div>
-            <div class="line"><span>Buy Price</span><b>RM ${t.buy.toFixed(4)}</b></div>
-            <div class="line"><span>Buy Unit</span><b>${units(t.unit)}</b></div>
-            <div class="line"><span>Buy Fee</span><b>${units(t.buyFee)}</b></div>
-            <div class="line"><span>Net Unit</span><b>${units(t.netUnit)}</b></div>
-            <div class="line"><span>Buy Value</span><b>${money(t.buyValue)}</b></div>
-            <div class="date-inset buy-date">
-              <span>BUY DATE / TIME</span>
-              <b>${formatTradeDateTime(t.buyDate,t.buyTime)}</b>
-            </div>
-          </div>
-
-          <div class="sidebox sellbox">
-            <div class="side-title">SELL</div>
-            <div class="line"><span>Sell Price</span><b>RM ${t.sell.toFixed(4)}</b></div>
-            <div class="line"><span>Sell Fee</span><b>${units(t.sellFee)}</b></div>
-            <div class="line"><span>Net Unit Sell</span><b>${units(t.netSell)}</b></div>
-            <div class="line"><span>Sell Value</span><b>${money(t.sellValue)}</b></div>
-            <div class="line"><span>Breakeven</span><b>RM ${t.breakeven.toFixed(6)}</b></div>
-            <div class="date-inset sell-date">
-              <span>SELL DATE / TIME</span>
-              <b>${formatTradeDateTime(t.sellDate,t.sellTime)}</b>
-            </div>
-          </div>
-        </div>
-
-        <div class="trade-pnl ${s}">
-          <span>PROFIT / LOSS</span>
-          <b>${t.pnl>=0?'+':''}${money(t.pnl)} &nbsp; (${t.pct>=0?'+':''}${t.pct.toFixed(2)}%)</b>
-        </div>
-      </section>`;
-  });
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LUNO Scalping Trade Report</title>
-<style>
-@page{size:A4;margin:12mm}
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#030712;color:#f8fafc;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.wrap{max-width:760px;margin:auto;padding:18px}
-.header,.summary,.trade{background:#0f172a;border:1px solid #253249;border-radius:16px;margin-bottom:12px}
-.header{padding:18px}
-h1{margin:0 0 8px;font-size:24px;color:#38bdf8}
-.sub{font-size:12px;color:#94a3b8;line-height:1.7}
-.trade{padding:14px;border-left-width:5px}
-.trade.profit{border-left-color:#22c55e}
-.trade.loss{border-left-color:#ef4444}
-.trade.be{border-left-color:#38bdf8}
-.trade-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.badge{font-size:10px;font-weight:bold;padding:5px 9px;border-radius:999px;background:#172033}
-.profit .badge{color:#86efac;background:#14532d}
-.loss .badge{color:#fda4af;background:#4b1720}
-.be .badge{color:#7dd3fc;background:#12344b}
-.trade-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.sidebox{background:#111827;border-radius:12px;padding:12px;min-width:0}
-.buybox{border:1px solid #38bdf8}
-.sellbox{border:1px solid #f59e0b}
-.side-title{font-size:11px;font-weight:800;letter-spacing:.6px;margin-bottom:8px}
-.buybox .side-title{color:#38bdf8}
-.sellbox .side-title{color:#f59e0b}
-.line{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #1f2937;font-size:10px}
-.line:last-of-type{border-bottom:0}
-.line span{color:#94a3b8}
-.line b{text-align:right;font-size:11px;max-width:58%}
-.date-inset{margin-top:10px;border-radius:9px;padding:8px 9px;line-height:1.45}
-.date-inset span{display:block;font-size:8px;font-weight:800;margin-bottom:4px}
-.date-inset b{display:block;font-size:9.5px;overflow-wrap:anywhere}
-.buy-date{border:1px solid #38bdf8;background:#0c1f32;color:#7dd3fc}
-.sell-date{border:1px solid #f59e0b;background:#2e220f;color:#fbbf24}
-.datetime b{color:#f8fafc;font-size:10px}
-.trade-pnl{margin-top:14px;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:10px;font-weight:800}
-.trade-pnl.profit{background:#12351f;color:#86efac}
-.trade-pnl.loss{background:#4b1720;color:#fda4af}
-.trade-pnl.be{background:#12344b;color:#7dd3fc}
-small{display:block;color:#94a3b8;font-size:9px;margin-bottom:4px}
-b{font-size:12px}
-.summary{padding:16px}
-.sumgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.sumitem{background:#111827;padding:10px;border-radius:10px}
-.must{background:#12351f;border:1px solid #22c55e;border-radius:12px;text-align:center;padding:13px;margin-top:10px}
-.must b{display:block;font-size:25px;color:#4ade80;margin-top:4px}
-.pnl{border-radius:12px;text-align:center;padding:13px;margin-top:10px;background:#111827}
-.pnl.profit{color:#4ade80}.pnl.loss{color:#fb7185}.pnl.be{color:#7dd3fc}
-.note{font-size:9px;color:#64748b;line-height:1.5;margin-top:14px}
-@media print{
-  body{background:#030712!important}
-  .wrap{padding:0}
-  .trade{break-inside:avoid}
-}
-@media(max-width:520px){.trade-columns{grid-template-columns:1fr 1fr;gap:8px}.sidebox{padding:9px}.line{font-size:9px}.line b{font-size:10px}}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="header">
-    <h1>LUNO TRADE REPORT</h1>
-    <div class="sub">
-      Coin Name: ${coin}<br>
-      Pair: ${pair}<br>
-      Generated: ${new Date().toLocaleString('en-MY')}<br>
-      Fixed Buy Fee 0.5% + Sell Fee 0.5%
-    </div>
-  </div>
-
-  ${cards}
-
-  <div class="summary">
-    <strong>TRADE SUMMARY</strong>
-    <div class="sumgrid" style="margin-top:10px">
-      <div class="sumitem"><small>ACTIVE TRADES</small><b>${trades.length} / 5</b></div>
-      <div class="sumitem"><small>TOTAL BUY UNIT</small><b>${units(trades.reduce((a,t)=>a+t.unit,0))}</b></div>
-      <div class="sumitem"><small>TOTAL BUY VALUE</small><b>${money(totalBuy)}</b></div>
-      <div class="sumitem"><small>TOTAL SELL VALUE</small><b>${money(totalSell)}</b></div>
-    </div>
-    <div class="must"><small>UNIT MUST SELL</small><b>${units(totalNet)}</b></div>
-    <div class="pnl ${state(totalPnl)}">
-      <small>TOTAL PROFIT / LOSS</small>
-      <b style="font-size:20px">${totalPnl>=0?'+':''}${money(totalPnl)} (${totalPct>=0?'+':''}${totalPct.toFixed(2)}%)</b>
-    </div>
-    <div class="note">Supporting Trading Record — Generated from user-entered transaction data. Verify against exchange statements/order history.</div>
-  </div>
-</div>
-</body>
-</html>`;
-}
-
-function openPrintPDFReport(){
-  const html=buildPrintableReportHTML();
-  if(!html){
-    alert('Isi sekurang-kurangnya 1 transaksi lengkap dahulu.');
-    return false;
-  }
-
-  const w=window.open('','_blank');
-  if(!w){
-    alert('Browser block popup. Allow popups untuk Generate PDF.');
-    return false;
-  }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  setTimeout(function(){
-    try{ w.focus(); w.print(); }catch(e){}
-  },350);
-  return true;
-}
-
-async function generatePDF(){
-  const status=document.getElementById('pdfStatus');
-  if(status) status.textContent='Generating report...';
-
-  try{
-    if(window.jspdf && window.jspdf.jsPDF){
-      await generatePDFWithJsPDF();
-      if(status) status.textContent='PDF generated.';
-      return;
-    }
-  }catch(err){
-    console.error('Direct PDF error:',err);
-  }
-
-  // Offline / iPhone fallback: opens a dedicated report and Print dialog.
-  // User can choose Save as PDF / Share / Save to Files.
-  if(status) status.textContent='Direct PDF library unavailable. Opening PDF/Print version...';
-  const ok=openPrintPDFReport();
-  if(ok && status) status.textContent='Report opened. Choose Save as PDF / Save to Files in the print screen.';
-}
-
-document.getElementById('pdfBtn').addEventListener('click',generatePDF);
-
-
 document.getElementById('resetBtn').addEventListener('click',()=>{
-  for(let i=1;i<=5;i++){
+  tradeCount=5;
+  makeTrades();
+  for(let i=1;i<=tradeCount;i++){
     document.getElementById('unit'+i).value='';
     document.getElementById('buy'+i).value='';
     document.getElementById('sell'+i).value='';
@@ -1316,6 +871,61 @@ function formatTradeDateTime(dateStr,timeStr){
   catch(e){return dateStr+(timeStr?' '+timeStr:'');}
 }
 
+
+let currentRecordId = '';
+
+function getNumSafe(id){
+  const el=document.getElementById(id);
+  if(!el) return 0;
+  const v=parseFloat(el.value);
+  return Number.isFinite(v)?v:0;
+}
+
+
+function createRecordId(){
+  const d=new Date();
+  return 'REC-'+
+    d.getFullYear()+
+    String(d.getMonth()+1).padStart(2,'0')+
+    String(d.getDate()).padStart(2,'0')+'-'+
+    String(d.getHours()).padStart(2,'0')+
+    String(d.getMinutes()).padStart(2,'0')+
+    String(d.getSeconds()).padStart(2,'0');
+}
+
+function updateCurrentRecordLabel(){
+  const el=document.getElementById('currentRecordLabel');
+  if(el) el.textContent=currentRecordId || 'NEW';
+}
+
+function resetTradeInputsForNewRecord(){
+  tradeCount=5;
+  makeTrades();
+  for(let i=1;i<=tradeCount;i++){
+    const ids=['unit','buy','sell','buyDate','buyTime','sellDate','sellTime'];
+    ids.forEach(prefix=>{
+      const el=document.getElementById(prefix+i);
+      if(el) el.value='';
+    });
+  }
+
+  // Keep selected coin. Set SELL date/time to now for all 5 slots.
+  setDefaultSellDateTime();
+
+  // Clear optional ledger metadata only; keep asset/coin synced.
+  const order=document.getElementById('ledgerOrderId');
+  const notes=document.getElementById('ledgerNotes');
+  if(order) order.value='';
+  if(notes) notes.value='';
+
+  currentRecordId=createRecordId();
+  updateCurrentRecordLabel();
+
+  save();
+  calc();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
 // ===== TRADE LEDGER / TAX SUPPORTING RECORD =====
 function getLedger(){
   try{
@@ -1337,7 +947,7 @@ function ledgerRef(){
 }
 function collectActiveTrades(){
   const trades=[];
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=tradeCount;i++){
     const unit=n('unit'+i), buy=n('buy'+i), sell=n('sell'+i);
     if(!(unit>0&&buy>0&&sell>0)) continue;
 
@@ -1390,7 +1000,7 @@ function saveLedgerRecord(){
   const lastSellDateTime=sellDateTimes.length?sellDateTimes[sellDateTimes.length-1]:'';
 
   const record={
-    ref:ledgerRef(),
+    ref:(currentRecordId||ledgerRef()),
     createdAt:new Date().toISOString(),
     asset,coinName,orderId,notes,
     firstBuyDateTime,lastSellDateTime,
@@ -1404,6 +1014,8 @@ function saveLedgerRecord(){
   setLedger(ledger);
   renderLedger();
   alert('Trade record saved: '+record.ref);
+  currentRecordId='';
+  updateCurrentRecordLabel();
 }
 function deleteLedgerRecord(ref){
   const ledger=getLedger().filter(r=>r.ref!==ref);
@@ -1479,6 +1091,242 @@ function escapeHtml(s){
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
   }[m]));
 }
+
+// ===== GENERATE ACTIVE TRADE PDF REPORT =====
+async function generatePDF(){
+  const status=document.getElementById('pdfStatus');
+  if(status) status.textContent='Generating PDF...';
+
+  const trades=collectActiveTrades();
+  if(!trades.length){
+    if(status) status.textContent='';
+    alert('Isi sekurang-kurangnya 1 trade lengkap: BUY UNIT + BUY PRICE + SELL PRICE.');
+    return;
+  }
+
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    if(status) status.textContent='PDF library belum load. Pastikan internet aktif dan cuba lagi.';
+    alert('PDF library belum load. Pastikan internet aktif dan cuba lagi.');
+    return;
+  }
+
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210,H=297,M=14;
+    let y=14;
+
+    const C={
+      bg:[3,7,18], navy:[7,17,31], panel:[15,24,39],
+      inner:[17,24,39], line:[39,52,74],
+      text:[241,245,249], muted:[148,163,184],
+      blue:[56,189,248], orange:[245,158,11],
+      green:[34,197,94], greenSoft:[20,83,45],
+      red:[239,68,68], redSoft:[95,28,35],
+      blueSoft:[20,65,91], white:[255,255,255]
+    };
+
+    const fill=c=>doc.setFillColor(...c);
+    const txt=c=>doc.setTextColor(...c);
+    const draw=c=>doc.setDrawColor(...c);
+    const money=v=>'RM '+Number(v||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const units=v=>Number(v||0).toLocaleString('en-MY',{maximumFractionDigits:3});
+
+    function pageBg(){
+      fill(C.bg); doc.rect(0,0,W,H,'F');
+    }
+    function ensure(h){
+      if(y+h>H-14){
+        doc.addPage();
+        pageBg();
+        y=14;
+      }
+    }
+
+    pageBg();
+
+    const pair=document.getElementById('coinSelect')?.value||'GRT/MYR';
+
+    // Header
+    fill(C.navy);
+    doc.roundedRect(M,y,W-M*2,40,4,4,'F');
+    txt(C.blue);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(18);
+    doc.text('LUNO TRADE REPORT',M+8,y+12);
+
+    txt(C.muted);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.text('Generated: '+new Date().toLocaleString('en-MY'),M+8,y+21);
+    doc.text('Coin Name: '+getCoinDisplayName(pair),M+8,y+28);
+    doc.text('Pair: '+pair+'  |  Buy Fee 0.5% + Sell Fee 0.5%',M+8,y+35);
+    y+=48;
+
+    trades.forEach(t=>{
+      ensure(100);
+
+      const state=t.pnl>0.005?'PROFIT':t.pnl<-0.005?'LOSS':'BREAKEVEN';
+      const accent=state==='PROFIT'?C.green:state==='LOSS'?C.red:C.blue;
+      const soft=state==='PROFIT'?C.greenSoft:state==='LOSS'?C.redSoft:C.blueSoft;
+
+      // Outer trade card
+      fill(C.panel); draw(C.line);
+      doc.roundedRect(M,y,W-M*2,91,4,4,'FD');
+      fill(accent);
+      doc.roundedRect(M,y,3,91,1.5,1.5,'F');
+
+      txt(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text('TRADE '+t.tradeNo,M+8,y+9);
+
+      fill(soft);
+      doc.roundedRect(W-M-34,y+4,26,7,3,3,'F');
+      txt(accent); doc.setFontSize(7.5);
+      doc.text(state,W-M-21,y+8.7,{align:'center'});
+
+      const leftX=M+8, rightX=M+95, boxY=y+14, boxW=79, boxH=61;
+
+      // BUY
+      fill(C.inner); draw(C.blue);
+      doc.roundedRect(leftX,boxY,boxW,boxH,3,3,'FD');
+      txt(C.blue); doc.setFontSize(9.5); doc.setFont('helvetica','bold');
+      doc.text('BUY',leftX+5,boxY+7);
+
+      txt(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+      const buyLabels=[['Price',15],['Unit',21],['Fee Unit',27],['Net Unit',33],['Value',39]];
+      buyLabels.forEach(a=>doc.text(a[0],leftX+5,boxY+a[1]));
+
+      txt(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+      doc.text('RM '+t.buy.toFixed(4),leftX+boxW-7,boxY+15,{align:'right'});
+      doc.text(units(t.unit),leftX+boxW-7,boxY+21,{align:'right'});
+      doc.text(units(t.buyFee),leftX+boxW-7,boxY+27,{align:'right'});
+      doc.text(units(t.netUnit),leftX+boxW-7,boxY+33,{align:'right'});
+      doc.text(money(t.buyValue),leftX+boxW-7,boxY+39,{align:'right'});
+
+      fill([12,31,50]); draw(C.blue);
+      doc.roundedRect(leftX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
+      txt(C.blue); doc.setFontSize(6.6); doc.setFont('helvetica','bold');
+      doc.text('BUY DATE / TIME',leftX+8,boxY+49);
+      txt(C.text); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text(
+        doc.splitTextToSize(formatTradeDateTime(t.buyDate,t.buyTime),boxW-16),
+        leftX+8,boxY+54
+      );
+
+      // SELL
+      fill(C.inner); draw(C.orange);
+      doc.roundedRect(rightX,boxY,boxW,boxH,3,3,'FD');
+      txt(C.orange); doc.setFontSize(9.5); doc.setFont('helvetica','bold');
+      doc.text('SELL',rightX+5,boxY+7);
+
+      txt(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+      const sellLabels=[['Price',15],['Fee Unit',21],['Net Unit Sell',27],['Value',33],['Breakeven',39]];
+      sellLabels.forEach(a=>doc.text(a[0],rightX+5,boxY+a[1]));
+
+      txt(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+      doc.text('RM '+t.sell.toFixed(4),rightX+boxW-7,boxY+15,{align:'right'});
+      doc.text(units(t.sellFee),rightX+boxW-7,boxY+21,{align:'right'});
+      doc.text(units(t.netSell),rightX+boxW-7,boxY+27,{align:'right'});
+      doc.text(money(t.sellValue),rightX+boxW-7,boxY+33,{align:'right'});
+      doc.text('RM '+t.breakeven.toFixed(6),rightX+boxW-7,boxY+39,{align:'right'});
+
+      fill([46,34,15]); draw(C.orange);
+      doc.roundedRect(rightX+4,boxY+44,boxW-8,13,2.5,2.5,'FD');
+      txt(C.orange); doc.setFontSize(6.6); doc.setFont('helvetica','bold');
+      doc.text('SELL DATE / TIME',rightX+8,boxY+49);
+      txt(C.text); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text(
+        doc.splitTextToSize(formatTradeDateTime(t.sellDate,t.sellTime),boxW-16),
+        rightX+8,boxY+54
+      );
+
+      // P/L bar
+      fill(soft); draw(accent);
+      doc.roundedRect(M+8,y+79,W-M*2-16,8,2.5,2.5,'FD');
+      txt(accent); doc.setFont('helvetica','bold'); doc.setFontSize(8.1);
+      doc.text(
+        'PROFIT / LOSS   '+(t.pnl>=0?'+':'')+money(t.pnl)+'   ('+(t.pct>=0?'+':'')+t.pct.toFixed(2)+'%)',
+        W/2,y+84.3,{align:'center'}
+      );
+
+      y+=98;
+    });
+
+    // Summary
+    ensure(78);
+    txt(C.white); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+    doc.text('TRADE SUMMARY',M,y);
+    y+=6;
+
+    const totalBuy=trades.reduce((a,t)=>a+t.buyValue,0);
+    const totalSell=trades.reduce((a,t)=>a+t.sellValue,0);
+    const totalUnit=trades.reduce((a,t)=>a+t.unit,0);
+    const totalNet=trades.reduce((a,t)=>a+t.netSell,0);
+    const totalPnl=totalSell-totalBuy;
+    const totalPct=totalBuy>0?(totalPnl/totalBuy)*100:0;
+    const finalAccent=totalPnl>0.005?C.green:totalPnl<-0.005?C.red:C.blue;
+    const finalSoft=totalPnl>0.005?C.greenSoft:totalPnl<-0.005?C.redSoft:C.blueSoft;
+
+    fill(C.navy);
+    doc.roundedRect(M,y,W-M*2,35,4,4,'F');
+
+    const sx=[M+7,M+67,M+127];
+    txt(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.4);
+    doc.text('ACTIVE TRADES',sx[0],y+9);
+    doc.text('TOTAL BUY VALUE',sx[1],y+9);
+    doc.text('TOTAL SELL VALUE',sx[2],y+9);
+
+    txt(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text(trades.length+' / '+tradeCount,sx[0],y+17);
+    doc.text(money(totalBuy),sx[1],y+17);
+    doc.text(money(totalSell),sx[2],y+17);
+
+    txt(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.4);
+    doc.text('TOTAL BUY UNIT',sx[0],y+27);
+    txt(C.text); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text(units(totalUnit),sx[0],y+33);
+
+    y+=42;
+
+    fill(C.greenSoft); draw(C.green);
+    doc.roundedRect(M,y,W-M*2,22,4,4,'FD');
+    txt(C.green); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text('UNIT MUST SELL',W/2,y+7,{align:'center'});
+    doc.setFontSize(19);
+    doc.text(units(totalNet),W/2,y+17,{align:'center'});
+    y+=28;
+
+    fill(finalSoft); draw(finalAccent);
+    doc.roundedRect(M,y,W-M*2,23,4,4,'FD');
+    txt(finalAccent); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text('TOTAL PROFIT / LOSS',W/2,y+7,{align:'center'});
+    doc.setFontSize(15);
+    doc.text(
+      (totalPnl>=0?'+':'')+money(totalPnl)+'  ('+(totalPct>=0?'+':'')+totalPct.toFixed(2)+'%)',
+      W/2,y+17,{align:'center'}
+    );
+
+    // Footer
+    txt(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text('Generated from LUNO Multi Trade Calculator',W/2,H-7,{align:'center'});
+
+    const now=new Date();
+    const stamp=
+      now.getFullYear().toString()+
+      String(now.getMonth()+1).padStart(2,'0')+
+      String(now.getDate()).padStart(2,'0')+'_'
+      +String(now.getHours()).padStart(2,'0')
+      +String(now.getMinutes()).padStart(2,'0');
+
+    doc.save('LUNO_Trade_Report_'+stamp+'.pdf');
+    if(status) status.textContent='PDF generated.';
+  }catch(err){
+    console.error(err);
+    if(status) status.textContent='PDF error. Cuba refresh dan tekan semula.';
+    alert('PDF gagal dijana: '+(err.message||err));
+  }
+}
+
 function generateLedgerPDF(ref){
   const record=getLedger().find(r=>r.ref===ref);
   if(!record){ alert('Record not found.'); return; }
@@ -1602,7 +1450,17 @@ function exportLedgerJSON(){
   URL.revokeObjectURL(a.href);
 }
 
+document.getElementById('pdfBtn').addEventListener('click',generatePDF);
 document.getElementById('saveLedgerBtn').addEventListener('click',saveLedgerRecord);
+document.getElementById('addTradeBtn').addEventListener('click',addTrade);
+document.getElementById('newRecordBtn').addEventListener('click',function(){
+  const hasData=collectActiveTrades().length>0 || Array.from({length:tradeCount},(_,k)=>k+1).some(i=>getNumSafe('unit'+i)||getNumSafe('buy'+i)||getNumSafe('sell'+i));
+  if(hasData){
+    const ok=confirm('Start a new record? Unsaved values in the current form will be cleared.');
+    if(!ok) return;
+  }
+  resetTradeInputsForNewRecord();
+});
 document.getElementById('csvBtn').addEventListener('click',exportLedgerCSV);
 document.getElementById('jsonBtn').addEventListener('click',exportLedgerJSON);
 loadSelectedCoin();
@@ -1618,6 +1476,8 @@ document.addEventListener('keydown', function(e){
 
 load();
 setDefaultSellDateTime();
+if(!currentRecordId) currentRecordId=createRecordId();
+updateCurrentRecordLabel();
 save();
 calc();
 </script>
