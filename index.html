@@ -581,20 +581,22 @@ function cls(v){const eps=0.005;return v>eps?'green':v<-eps?'red':'blue'}
 function pad2(v){ return String(v).padStart(2,'0'); }
 
 function setDefaultSellDateTime(){
-  const now=new Date();
-  const dateValue=
-    now.getFullYear()+'-'+
-    pad2(now.getMonth()+1)+'-'+
+  const now = new Date();
+  const dateValue =
+    now.getFullYear() + '-' +
+    pad2(now.getMonth() + 1) + '-' +
     pad2(now.getDate());
-  const timeValue=pad2(now.getHours())+':'+pad2(now.getMinutes());
+  const timeValue =
+    pad2(now.getHours()) + ':' +
+    pad2(now.getMinutes());
 
-  for(let i=1;i<=tradeCount;i++){
-    const d=document.getElementById('sellDate'+i);
-    const t=document.getElementById('sellTime'+i);
+  for(let i = 1; i <= tradeCount; i++){
+    const sellDate = document.getElementById('sellDate' + i);
+    const sellTime = document.getElementById('sellTime' + i);
 
-    // Do not overwrite a date/time the user already entered or restored.
-    if(d && !d.value) d.value=dateValue;
-    if(t && !t.value) t.value=timeValue;
+    // Auto-fill only if empty. User can still edit manually.
+    if(sellDate && !sellDate.value) sellDate.value = dateValue;
+    if(sellTime && !sellTime.value) sellTime.value = timeValue;
   }
 }
 
